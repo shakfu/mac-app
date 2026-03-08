@@ -3,10 +3,12 @@ CMAKE := cmake
 SPM_DIR := projects/swiftui-spm
 SPM_BUILD_DIR := $(BUILD_DIR)/swiftui-spm
 SPM_FLAGS := --scratch-path $(SPM_BUILD_DIR) --package-path $(SPM_DIR)
+SPM_BIN := $(SPM_BUILD_DIR)/arm64-apple-macosx/debug/MacApp
+APP_BUNDLE := $(BUILD_DIR)/MacApp.app
 
 .PHONY: all configure build test clean run
 .PHONY: build-cmake test-cmake run-cmake
-.PHONY: build-spm test-spm run-spm
+.PHONY: build-spm test-spm run-spm bundle-spm
 
 all: build
 
@@ -41,5 +43,12 @@ build-spm:
 test-spm:
 	swift test $(SPM_FLAGS)
 
-run-spm: build-spm
-	swift run $(SPM_FLAGS) MacApp
+run-spm: bundle-spm
+	open $(APP_BUNDLE)
+
+bundle-spm: build-spm
+	mkdir -p $(APP_BUNDLE)/Contents/MacOS
+	mkdir -p $(APP_BUNDLE)/Contents/Resources
+	cp $(SPM_BIN) $(APP_BUNDLE)/Contents/MacOS/MacApp
+	cp $(SPM_DIR)/Sources/MacApp/Info.plist $(APP_BUNDLE)/Contents/Info.plist
+	@echo "Built $(APP_BUNDLE)"

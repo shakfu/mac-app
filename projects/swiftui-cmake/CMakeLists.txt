@@ -26,12 +26,28 @@ target_compile_options(MathBridge PRIVATE
     "SHELL:-Xcc -I${MATHLIB_INCLUDE_DIR}"
 )
 
+# --- TaskRunner library (pure Swift) ---
+add_library(TaskRunner STATIC
+    Sources/TaskRunner/AppTask.swift
+    Sources/TaskRunner/TaskContext.swift
+    Sources/TaskRunner/TaskStatus.swift
+    Sources/TaskRunner/ManagedTask.swift
+    Sources/TaskRunner/TaskManager.swift
+)
+target_link_libraries(TaskRunner PUBLIC
+    "-framework Foundation"
+)
+
 # --- SwiftUI app ---
 add_executable(MacApp
     Sources/MacApp/MacApp.swift
     Sources/MacApp/ContentView.swift
+    Sources/MacApp/TaskManagerView.swift
+    Sources/MacApp/Tasks/CountdownTask.swift
+    Sources/MacApp/Tasks/FibonacciTask.swift
+    Sources/MacApp/Tasks/RandomFailTask.swift
 )
-target_link_libraries(MacApp PRIVATE MathBridge mathlib)
+target_link_libraries(MacApp PRIVATE MathBridge mathlib TaskRunner)
 target_compile_options(MacApp PRIVATE
     "SHELL:-Xcc -fmodule-map-file=${MODULEMAP_PATH}"
     "SHELL:-Xcc -I${MATHLIB_INCLUDE_DIR}"
@@ -47,8 +63,8 @@ target_link_libraries(MacApp PRIVATE
 set_target_properties(MacApp PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Sources/MacApp/Info.plist"
-    MACOSX_BUNDLE_BUNDLE_NAME "MathLib Demo"
-    MACOSX_BUNDLE_GUI_IDENTIFIER "com.example.mathlib-demo"
+    MACOSX_BUNDLE_BUNDLE_NAME "MacApp"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.example.macapp"
     MACOSX_BUNDLE_BUNDLE_VERSION "1"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
 )

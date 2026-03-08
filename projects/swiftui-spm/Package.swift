@@ -22,7 +22,8 @@ let package = Package(
         .executableTarget(
             name: "MacApp",
             dependencies: ["MathBridge", "TaskRunner"],
-            path: "Sources/MacApp"
+            path: "Sources/MacApp",
+            exclude: ["Info.plist"]
         ),
         .testTarget(
             name: "MathBridgeTests",
