@@ -15,15 +15,24 @@ let package = Package(
             dependencies: ["MathLib"],
             path: "Sources/MathBridge"
         ),
+        .target(
+            name: "TaskRunner",
+            path: "Sources/TaskRunner"
+        ),
         .executableTarget(
             name: "MacApp",
-            dependencies: ["MathBridge"],
+            dependencies: ["MathBridge", "TaskRunner"],
             path: "Sources/MacApp"
         ),
         .testTarget(
             name: "MathBridgeTests",
             dependencies: ["MathBridge"],
             path: "Tests/MathBridgeTests"
+        ),
+        .testTarget(
+            name: "TaskRunnerTests",
+            dependencies: ["TaskRunner"],
+            path: "Tests/TaskRunnerTests"
         ),
     ]
 )
