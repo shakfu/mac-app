@@ -1,0 +1,5 @@
+module CPythonLib {
+    header "@PYTHONLIB_INCLUDE_DIR@/pythonlib.h"
+    link "pythonlib"
+    export *
+}
