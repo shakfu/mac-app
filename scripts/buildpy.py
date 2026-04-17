@@ -32,6 +32,7 @@ ShellCmd
 """
 
 import argparse
+import copy
 import datetime
 import hashlib
 import json
@@ -524,7 +525,6 @@ class Config:
     log: logging.Logger
 
     def __init__(self, cfg: dict[str, Any]) -> None:
-        import copy
         self.cfg: dict[str, Any] = copy.deepcopy(cfg)
         self.out = ["# -*- makefile -*-"] + self.cfg["header"] + ["\n# core\n"]
         self.log = logging.getLogger(self.__class__.__name__)
