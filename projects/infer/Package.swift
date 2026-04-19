@@ -8,6 +8,9 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "3.0.0"),
         .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.8.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.2.0"),
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.4.0"),
+        .package(url: "https://github.com/JohnSundell/Splash", from: "0.16.0"),
+        .package(url: "https://github.com/swiftlang/swift-markdown", from: "0.7.0"),
     ],
     targets: [
         .binaryTarget(
@@ -23,6 +26,9 @@ let package = Package(
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
+                .product(name: "MarkdownUI", package: "swift-markdown-ui"),
+                .product(name: "Splash", package: "Splash"),
+                .product(name: "Markdown", package: "swift-markdown"),
             ],
             path: "Sources/Infer",
             exclude: ["Info.plist"],

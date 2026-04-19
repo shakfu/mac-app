@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import MarkdownUI
+import Splash
 
 struct ChatMessage: Identifiable, Equatable {
     enum Role: String { case user, assistant, system }
@@ -19,6 +21,12 @@ enum Backend: String, CaseIterable, Identifiable {
         case .mlx: return "MLX"
         }
     }
+}
+
+private enum PersistKey {
+    static let backend = "infer.lastBackend"
+    static let llamaPath = "infer.lastLlamaPath"
+    static let mlxId = "infer.lastMLXId"
 }
 
 @MainActor
@@ -40,6 +48,25 @@ final class ChatViewModel {
     private var generationTask: Task<Void, Never>? = nil
 
     // MARK: - Loading
+
+    func autoLoadLastModel() {
+        guard !modelLoaded, !isLoadingModel else { return }
+        let d = UserDefaults.standard
+        guard let raw = d.string(forKey: PersistKey.backend),
+              let last = Backend(rawValue: raw) else { return }
+        switch last {
+        case .llama:
+            guard let path = d.string(forKey: PersistKey.llamaPath),
+                  FileManager.default.fileExists(atPath: path) else { return }
+            backend = .llama
+            loadLlama(at: path)
+        case .mlx:
+            let id = d.string(forKey: PersistKey.mlxId) ?? ""
+            backend = .mlx
+            mlxModelId = id
+            loadMLX(hfId: id)
+        }
+    }
 
     func loadCurrentBackend() {
         switch backend {
@@ -76,6 +103,9 @@ final class ChatViewModel {
                     self.modelLoaded = true
                     self.modelStatus = "llama: \((path as NSString).lastPathComponent)"
                     self.isLoadingModel = false
+                    let d = UserDefaults.standard
+                    d.set(Backend.llama.rawValue, forKey: PersistKey.backend)
+                    d.set(path, forKey: PersistKey.llamaPath)
                 }
             } catch {
                 await MainActor.run {
@@ -103,6 +133,9 @@ final class ChatViewModel {
                     self.modelLoaded = true
                     self.modelStatus = "MLX: \(shown)"
                     self.isLoadingModel = false
+                    let d = UserDefaults.standard
+                    d.set(Backend.mlx.rawValue, forKey: PersistKey.backend)
+                    d.set(hfId, forKey: PersistKey.mlxId)
                 }
             } catch {
                 await MainActor.run {
@@ -165,6 +198,18 @@ final class ChatViewModel {
         }
         generationTask?.cancel()
         generationTask = nil
+    }
+
+    // MARK: - Copy / Print
+
+    func copyMarkdown(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+    }
+
+    func printTranscript() {
+        PrintRenderer.printTranscript(messages)
     }
 
     func reset() {
@@ -244,11 +289,13 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(vm.messages) { msg in
-                        MessageRow(message: msg).id(msg.id)
+                        MessageRow(message: msg, onCopy: vm.copyMarkdown).id(msg.id)
                     }
                 }
                 .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .background(Color.white)
             .onChange(of: vm.messages.last?.text) { _, _ in
                 if let last = vm.messages.last { proxy.scrollTo(last.id, anchor: .bottom) }
             }
@@ -278,16 +325,52 @@ struct ChatView: View {
 
 private struct MessageRow: View {
     let message: ChatMessage
+    var onCopy: ((String) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Text(roleLabel)
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .trailing)
-            Text(message.text.isEmpty ? "…" : message.text)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(roleLabel)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                if message.role == .assistant, !message.text.isEmpty, let onCopy {
+                    Button {
+                        onCopy(message.text)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Copy as Markdown")
+                }
+            }
+            .frame(width: 70, alignment: .trailing)
+
+            content
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if message.text.isEmpty {
+            Text("…").foregroundStyle(.secondary)
+        } else {
+            switch message.role {
+            case .assistant:
+                Markdown(message.text)
+                    .markdownTheme(.gitHub)
+                    .markdownCodeSyntaxHighlighter(
+                        .splash(theme: .sundellsColors(withFont: .init(size: 14)))
+                    )
+                    .environment(\.openURL, OpenURLAction { url in
+                        NSWorkspace.shared.open(url)
+                        return .handled
+                    })
+            case .user, .system:
+                Text(message.text)
+            }
         }
     }
 

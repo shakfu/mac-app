@@ -10,11 +10,19 @@ struct InferApp: App {
     var body: some Scene {
         WindowGroup("Infer") {
             ChatView(vm: chatVM)
-                .onAppear { appDelegate.chatVM = chatVM }
+                .onAppear {
+                    appDelegate.chatVM = chatVM
+                    chatVM.autoLoadLastModel()
+                }
         }
         .defaultSize(width: 780, height: 640)
         .commands {
             CommandGroup(replacing: .newItem) { }
+            CommandGroup(replacing: .printItem) {
+                Button("Print Transcript…") { chatVM.printTranscript() }
+                    .keyboardShortcut("p", modifiers: .command)
+                    .disabled(chatVM.messages.isEmpty)
+            }
         }
     }
 }
