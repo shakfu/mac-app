@@ -37,10 +37,6 @@ playground.xcworkspace
 
 .build/
 build/
-thirdparty/llama.framework/
-thirdparty/llama.xcframework/
-projects/infer/.build/
-projects/infer/Package.resolved
 
 # CocoaPods
 #
