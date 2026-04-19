@@ -6,3 +6,4 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version")
 enable_testing()
 
 add_subdirectory(projects/swiftui-cmake)
+add_subdirectory(projects/infer)

@@ -5,17 +5,21 @@ SPM_BUILD_DIR := $(BUILD_DIR)/swiftui-spm
 SPM_FLAGS := --scratch-path $(SPM_BUILD_DIR) --package-path $(SPM_DIR)
 SPM_BIN := $(SPM_BUILD_DIR)/arm64-apple-macosx/debug/MacApp
 CMAKE_APP_BUNDLE := $(BUILD_DIR)/MacApp-cmake.app
+INFER_APP_BUNDLE := $(BUILD_DIR)/Infer.app
 SPM_APP_BUNDLE := $(BUILD_DIR)/MacApp-spm.app
 PY_VER := 3.13
 PY_FRAMEWORK := $(BUILD_DIR)/install/Python.framework
 CMAKE_PY_DIR := projects/swiftui-cmake-python
 CMAKE_PY_BUILD_DIR := $(BUILD_DIR)/cmake-python
 CMAKE_PY_APP_BUNDLE := $(BUILD_DIR)/MacApp-cmake-python.app
+LLAMA_FRAMEWORK := thirdparty/llama.framework
+LLAMA_TAG := b8848
 
 .PHONY: all configure build test clean run
 .PHONY: build-cmake test-cmake run-cmake bundle-cmake
 .PHONY: build-spm test-spm run-spm bundle-spm
 .PHONY: build-python build-cmake-python test-cmake-python bundle-cmake-python run-cmake-python
+.PHONY: build-infer bundle-infer run-infer fetch-llama
 
 all: build
 
@@ -96,3 +100,21 @@ bundle-cmake-python: build-cmake-python
 
 run-cmake-python: bundle-cmake-python
 	open $(CMAKE_PY_APP_BUNDLE)
+
+# --- Infer app (swiftui + llama.framework) ---
+
+$(LLAMA_FRAMEWORK):
+	./scripts/fetch_llama_framework.sh $(LLAMA_TAG)
+
+fetch-llama: $(LLAMA_FRAMEWORK)
+
+build-infer: $(LLAMA_FRAMEWORK) configure
+	$(CMAKE) --build $(BUILD_DIR) --target Infer
+
+bundle-infer: build-infer
+	rm -rf $(INFER_APP_BUNDLE)
+	cp -R $(BUILD_DIR)/projects/infer/Infer.app $(INFER_APP_BUNDLE)
+	@echo "Built $(INFER_APP_BUNDLE)"
+
+run-infer: bundle-infer
+	open $(INFER_APP_BUNDLE)
