@@ -202,7 +202,10 @@ final class ChatViewModel {
 
     // MARK: - Copy / Print
 
-    func copyMarkdown(_ text: String) {
+    func copyTranscriptAsMarkdown() {
+        let text = messages
+            .map { "## \($0.role.rawValue)\n\n\($0.text)" }
+            .joined(separator: "\n\n---\n\n")
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
@@ -289,7 +292,7 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(vm.messages) { msg in
-                        MessageRow(message: msg, onCopy: vm.copyMarkdown).id(msg.id)
+                        MessageRow(message: msg).id(msg.id)
                     }
                 }
                 .padding(12)
@@ -325,27 +328,13 @@ struct ChatView: View {
 
 private struct MessageRow: View {
     let message: ChatMessage
-    var onCopy: ((String) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(roleLabel)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                if message.role == .assistant, !message.text.isEmpty, let onCopy {
-                    Button {
-                        onCopy(message.text)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Copy as Markdown")
-                }
-            }
-            .frame(width: 70, alignment: .trailing)
-
+            Text(roleLabel)
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .trailing)
             content
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)

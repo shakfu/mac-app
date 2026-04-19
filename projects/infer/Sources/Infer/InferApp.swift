@@ -23,6 +23,12 @@ struct InferApp: App {
                     .keyboardShortcut("p", modifiers: .command)
                     .disabled(chatVM.messages.isEmpty)
             }
+            CommandGroup(after: .pasteboard) {
+                Divider()
+                Button("Copy Transcript as Markdown") { chatVM.copyTranscriptAsMarkdown() }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+                    .disabled(chatVM.messages.isEmpty)
+            }
         }
     }
 }
