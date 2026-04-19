@@ -36,8 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let vm = chatVM else { return }
         let sem = DispatchSemaphore(value: 0)
         Task.detached {
-            await vm.runner.requestStop()
-            await vm.runner.shutdown()
+            await vm.llama.requestStop()
+            await vm.llama.shutdown()
+            await vm.mlx.requestStop()
+            await vm.mlx.shutdown()
             llama_backend_free()
             sem.signal()
         }

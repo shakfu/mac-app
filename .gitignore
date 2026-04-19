@@ -38,6 +38,9 @@ playground.xcworkspace
 .build/
 build/
 thirdparty/llama.framework/
+thirdparty/llama.xcframework/
+projects/infer/.build/
+projects/infer/Package.resolved
 
 # CocoaPods
 #
@@ -68,3 +71,8 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+.claude
+CLAUDE.md
+AGENTS.md
+GEMINI.md

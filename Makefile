@@ -12,8 +12,19 @@ PY_FRAMEWORK := $(BUILD_DIR)/install/Python.framework
 CMAKE_PY_DIR := projects/swiftui-cmake-python
 CMAKE_PY_BUILD_DIR := $(BUILD_DIR)/cmake-python
 CMAKE_PY_APP_BUNDLE := $(BUILD_DIR)/MacApp-cmake-python.app
-LLAMA_FRAMEWORK := thirdparty/llama.framework
+LLAMA_XCFRAMEWORK := thirdparty/llama.xcframework
+LLAMA_FRAMEWORK := $(LLAMA_XCFRAMEWORK)/macos-arm64_x86_64/llama.framework
 LLAMA_TAG := b8848
+INFER_DIR := projects/infer
+INFER_BUILD_DIR := $(BUILD_DIR)/infer-xcode
+INFER_CONFIG := Debug
+INFER_XCODE_FLAGS := -workspace $(INFER_DIR) -scheme Infer \
+	-destination 'platform=macOS,arch=arm64' \
+	-configuration $(INFER_CONFIG) \
+	-derivedDataPath $(CURDIR)/$(INFER_BUILD_DIR) \
+	-skipMacroValidation
+INFER_PRODUCT_DIR := $(INFER_BUILD_DIR)/Build/Products/$(INFER_CONFIG)
+INFER_BIN := $(INFER_PRODUCT_DIR)/Infer
 
 .PHONY: all configure build test clean run
 .PHONY: build-cmake test-cmake run-cmake bundle-cmake
@@ -101,19 +112,28 @@ bundle-cmake-python: build-cmake-python
 run-cmake-python: bundle-cmake-python
 	open $(CMAKE_PY_APP_BUNDLE)
 
-# --- Infer app (swiftui + llama.framework) ---
+# --- Infer app (SwiftPM + llama.framework + MLX) ---
 
-$(LLAMA_FRAMEWORK):
+$(LLAMA_XCFRAMEWORK):
 	./scripts/fetch_llama_framework.sh $(LLAMA_TAG)
 
-fetch-llama: $(LLAMA_FRAMEWORK)
+fetch-llama: $(LLAMA_XCFRAMEWORK)
 
-build-infer: $(LLAMA_FRAMEWORK) configure
-	$(CMAKE) --build $(BUILD_DIR) --target Infer
+build-infer: $(LLAMA_XCFRAMEWORK)
+	xcodebuild $(INFER_XCODE_FLAGS) build
 
 bundle-infer: build-infer
 	rm -rf $(INFER_APP_BUNDLE)
-	cp -R $(BUILD_DIR)/projects/infer/Infer.app $(INFER_APP_BUNDLE)
+	mkdir -p $(INFER_APP_BUNDLE)/Contents/MacOS
+	mkdir -p $(INFER_APP_BUNDLE)/Contents/Resources
+	mkdir -p $(INFER_APP_BUNDLE)/Contents/Frameworks
+	cp $(INFER_BIN) $(INFER_APP_BUNDLE)/Contents/MacOS/Infer
+	cp $(INFER_DIR)/Sources/Infer/Info.plist $(INFER_APP_BUNDLE)/Contents/Info.plist
+	cp -R $(LLAMA_FRAMEWORK) $(INFER_APP_BUNDLE)/Contents/Frameworks/llama.framework
+	@for bundle in $(INFER_PRODUCT_DIR)/*.bundle; do \
+		[ -e "$$bundle" ] || continue; \
+		cp -R "$$bundle" $(INFER_APP_BUNDLE)/Contents/Resources/; \
+	done
 	@echo "Built $(INFER_APP_BUNDLE)"
 
 run-infer: bundle-infer

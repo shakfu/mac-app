@@ -9,6 +9,7 @@ A template macOS SwiftUI application built with CMake and Swift Package Manager,
 | `projects/swiftui-cmake` | SwiftUI app with C math library bridge | CMake + Ninja |
 | `projects/swiftui-cmake-python` | Same as above, plus an embedded Python 3.13 interpreter | CMake + Ninja |
 | `projects/swiftui-spm` | SwiftUI app with C math library bridge | Swift Package Manager |
+| `projects/infer` | SwiftUI chat app with two inference backends: `llama.cpp` (via `llama.xcframework`) and MLX (via `mlx-swift-lm`) | SwiftPM, built with `xcodebuild` |
 
 ### Architecture
 
@@ -28,10 +29,11 @@ The `swiftui-cmake-python` variant adds:
 ## Prerequisites
 
 - macOS 14.0+
-- Xcode with Swift 5.9+
+- Xcode 16.3+ with Swift 6.1+ (required by `mlx-swift-lm`; the other projects work with Swift 5.9+)
 - CMake 3.25+ and Ninja
 - Python 3 (for building the embedded interpreter)
 - Homebrew packages for the Python build: `readline`, `ncurses`
+- Metal Toolchain (only for the `infer` project): `xcodebuild -downloadComponent MetalToolchain` (~700 MB, one-time)
 
 ## Build
 
@@ -45,7 +47,19 @@ make bundle-spm      # -> build/MacApp-spm.app
 
 # Build the Python variant (first run builds Python from source via scripts/buildpy.py)
 make bundle-cmake-python  # -> build/MacApp-cmake-python.app
+
+# Build the Infer chat app (first run downloads llama.xcframework to thirdparty/)
+make bundle-infer         # -> build/Infer.app
 ```
+
+### The `infer` project
+
+`make build-infer` uses `xcodebuild` (not `swift build`) because mlx-swift's Metal kernels can only be compiled by Xcode's Metal toolchain. The `llama.xcframework` is fetched by `scripts/fetch_llama_framework.sh` from the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases); override the tag with `make build-infer LLAMA_TAG=bXXXX`.
+
+At runtime the app offers two backends via a header picker:
+
+- **llama.cpp** — click `Load Model…` and pick a local `.gguf` file.
+- **MLX** — leave the HF repo id empty to use `LLMRegistry.gemma3_1B_qat_4bit` (~700 MB, downloaded on first use to `~/.cache/huggingface/hub/`), or paste any MLX-compatible HF id like `mlx-community/Qwen3-4B-4bit`.
 
 ## Run
 
@@ -53,6 +67,7 @@ make bundle-cmake-python  # -> build/MacApp-cmake-python.app
 make run-cmake          # Open MacApp-cmake.app
 make run-spm            # Open MacApp-spm.app
 make run-cmake-python   # Open MacApp-cmake-python.app
+make run-infer          # Open Infer.app
 ```
 
 ## Test
@@ -88,3 +103,7 @@ make clean              # Remove entire build/ directory
 | `bundle-cmake-python` | Bundle as `build/MacApp-cmake-python.app` with embedded Python.framework |
 | `run-cmake-python` | Bundle and open |
 | `test-cmake-python` | Run CMake+Python project tests |
+| `fetch-llama` | Download `thirdparty/llama.xcframework` (tag via `LLAMA_TAG=...`) |
+| `build-infer` | Build the Infer chat app via `xcodebuild` |
+| `bundle-infer` | Bundle as `build/Infer.app` (embeds `llama.framework` and MLX resource bundles including `default.metallib`) |
+| `run-infer` | Bundle and open |

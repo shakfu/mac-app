@@ -9,21 +9,46 @@ struct ChatMessage: Identifiable, Equatable {
     var text: String
 }
 
+enum Backend: String, CaseIterable, Identifiable {
+    case llama
+    case mlx
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .llama: return "llama.cpp"
+        case .mlx: return "MLX"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class ChatViewModel {
     var messages: [ChatMessage] = []
     var input: String = ""
-    var modelPath: String? = nil
+    var backend: Backend = .llama
+    var modelLoaded: Bool = false
     var modelStatus: String = "No model loaded"
     var isLoadingModel = false
     var isGenerating = false
     var errorMessage: String? = nil
+    /// User-entered HF repo id for MLX; empty => registry default.
+    var mlxModelId: String = ""
 
-    let runner = LlamaRunner()
+    let llama = LlamaRunner()
+    let mlx = MLXRunner()
     private var generationTask: Task<Void, Never>? = nil
 
-    func pickModel() {
+    // MARK: - Loading
+
+    func loadCurrentBackend() {
+        switch backend {
+        case .llama: pickLlamaModel()
+        case .mlx: loadMLX(hfId: mlxModelId.trimmingCharacters(in: .whitespaces))
+        }
+    }
+
+    private func pickLlamaModel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -33,22 +58,23 @@ final class ChatViewModel {
         }
         panel.message = "Select a .gguf model file"
         if panel.runModal() == .OK, let url = panel.url {
-            loadModel(at: url.path)
+            loadLlama(at: url.path)
         }
     }
 
-    func loadModel(at path: String) {
+    private func loadLlama(at path: String) {
         guard !isLoadingModel else { return }
         isLoadingModel = true
+        modelLoaded = false
         modelStatus = "Loading \((path as NSString).lastPathComponent)…"
         errorMessage = nil
-        let runner = self.runner
+        let runner = self.llama
         Task {
             do {
                 try await runner.load(path: path)
                 await MainActor.run {
-                    self.modelPath = path
-                    self.modelStatus = "Loaded: \((path as NSString).lastPathComponent)"
+                    self.modelLoaded = true
+                    self.modelStatus = "llama: \((path as NSString).lastPathComponent)"
                     self.isLoadingModel = false
                 }
             } catch {
@@ -61,9 +87,38 @@ final class ChatViewModel {
         }
     }
 
+    private func loadMLX(hfId: String) {
+        guard !isLoadingModel else { return }
+        isLoadingModel = true
+        modelLoaded = false
+        let id = hfId.isEmpty ? nil : hfId
+        modelStatus = "Downloading \(id ?? "default")…"
+        errorMessage = nil
+        let runner = self.mlx
+        Task {
+            do {
+                try await runner.load(hfId: id)
+                let shown = await runner.loadedModelId ?? "mlx"
+                await MainActor.run {
+                    self.modelLoaded = true
+                    self.modelStatus = "MLX: \(shown)"
+                    self.isLoadingModel = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load MLX model: \(error)"
+                    self.modelStatus = "No model loaded"
+                    self.isLoadingModel = false
+                }
+            }
+        }
+    }
+
+    // MARK: - Generate
+
     func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, modelPath != nil, !isGenerating else { return }
+        guard !text.isEmpty, modelLoaded, !isGenerating else { return }
 
         messages.append(ChatMessage(role: .user, text: text))
         messages.append(ChatMessage(role: .assistant, text: ""))
@@ -71,11 +126,17 @@ final class ChatViewModel {
         input = ""
         isGenerating = true
 
-        let runner = self.runner
+        let backend = self.backend
 
         generationTask = Task {
             do {
-                let stream = await runner.sendUserMessage(text, maxTokens: 512)
+                let stream: AsyncThrowingStream<String, Error>
+                switch backend {
+                case .llama:
+                    stream = await self.llama.sendUserMessage(text, maxTokens: 512)
+                case .mlx:
+                    stream = await self.mlx.sendUserMessage(text, maxTokens: 512)
+                }
                 for try await piece in stream {
                     if assistantIndex < self.messages.count {
                         self.messages[assistantIndex].text += piece
@@ -83,21 +144,25 @@ final class ChatViewModel {
                 }
             } catch is CancellationError {
                 // user-initiated stop
+            } catch LlamaError.cancelled {
+                // user-initiated stop
+            } catch MLXRunnerError.cancelled {
+                // user-initiated stop
             } catch {
-                if case LlamaError.cancelled = error {
-                    // user-initiated stop
-                } else {
-                    self.errorMessage = "Generation error: \(error)"
-                }
+                self.errorMessage = "Generation error: \(error)"
             }
             self.isGenerating = false
         }
     }
 
     func stop() {
-        // Signal the runner first so the in-flight decode loop exits promptly.
-        let runner = self.runner
-        Task { await runner.requestStop() }
+        let b = self.backend
+        Task {
+            switch b {
+            case .llama: await self.llama.requestStop()
+            case .mlx: await self.mlx.requestStop()
+            }
+        }
         generationTask?.cancel()
         generationTask = nil
     }
@@ -105,7 +170,13 @@ final class ChatViewModel {
     func reset() {
         stop()
         messages.removeAll()
-        Task { await runner.resetConversation() }
+        let b = self.backend
+        Task {
+            switch b {
+            case .llama: await self.llama.resetConversation()
+            case .mlx: await self.mlx.resetConversation()
+            }
+        }
     }
 }
 
@@ -132,8 +203,25 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Button(action: { vm.pickModel() }) {
-                Label("Load Model…", systemImage: "tray.and.arrow.down")
+            Picker("", selection: $vm.backend) {
+                ForEach(Backend.allCases) { b in
+                    Text(b.label).tag(b)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 180)
+            .disabled(vm.isLoadingModel || vm.isGenerating)
+
+            if vm.backend == .mlx {
+                TextField("HF repo id (empty = default)", text: $vm.mlxModelId)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 260)
+                    .disabled(vm.isLoadingModel || vm.isGenerating)
+            }
+
+            Button(action: { vm.loadCurrentBackend() }) {
+                Label(vm.backend == .llama ? "Load Model…" : "Load",
+                      systemImage: "tray.and.arrow.down")
             }
             .disabled(vm.isLoadingModel || vm.isGenerating)
 
@@ -181,7 +269,7 @@ struct ChatView: View {
             } else {
                 Button("Send") { vm.send() }
                     .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(vm.modelPath == nil || vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!vm.modelLoaded || vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(10)

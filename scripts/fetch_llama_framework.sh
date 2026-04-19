@@ -32,24 +32,14 @@ if [ -z "$XCFRAMEWORK_PATH" ]; then
     exit 1
 fi
 
-FRAMEWORK_PATH="$(find "$XCFRAMEWORK_PATH" -type d -name 'llama.framework' \
-    -path '*macos-arm64*' -print -quit)"
-if [ -z "$FRAMEWORK_PATH" ]; then
-    FRAMEWORK_PATH="$(find "$XCFRAMEWORK_PATH" -type d -name 'llama.framework' -print -quit)"
-fi
-if [ -z "$FRAMEWORK_PATH" ]; then
-    echo "Error: llama.framework not found inside xcframework" >&2
-    exit 1
-fi
-
 mkdir -p "$THIRDPARTY_DIR"
-DEST="$THIRDPARTY_DIR/llama.framework"
+DEST="$THIRDPARTY_DIR/llama.xcframework"
 if [ -e "$DEST" ]; then
     echo "Removing existing $DEST"
     rm -rf "$DEST"
 fi
 
-echo "Copying $FRAMEWORK_PATH -> $DEST"
-cp -R "$FRAMEWORK_PATH" "$DEST"
+echo "Copying $XCFRAMEWORK_PATH -> $DEST"
+cp -R "$XCFRAMEWORK_PATH" "$DEST"
 
-echo "Done. llama.framework (tag $TAG) installed at $DEST"
+echo "Done. llama.xcframework (tag $TAG) installed at $DEST"
